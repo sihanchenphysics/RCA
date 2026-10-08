@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hidden rotation in a noisy traveling pattern — interactive simulation</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #1d1d22;
+    --muted: #5f6270;
+    --line: #d9dae0;
+    --panel: #ffffff;
+    --bg: #f6f6f8;
+    --accent: #0E9594;
+    --accent2: #7B4FB5;
+    --warm: #C34D79;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Latin Modern Roman", "CMU Serif", "STIX Two Text", Georgia, "Times New Roman", serif;
+    font-size: 16px; line-height: 1.45;
+  }
+  header { padding: 22px 28px 8px; max-width: 1320px; margin: 0 auto; }
+  h1 { font-size: 1.55rem; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: var(--muted); margin: 0; }
+  main {
+    max-width: 1320px; margin: 0 auto; padding: 12px 28px 28px;
+    display: grid; grid-template-columns: 300px 1fr; gap: 18px;
+  }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .controls h2, .card h2 { font-size: 1.02rem; margin: 0 0 8px; font-weight: 600; }
+  .ctl { margin: 12px 0; }
+  .ctl label { display: block; font-size: 0.95rem; }
+  .ctl label span.v { float: right; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  button {
+    font: inherit; font-size: 0.92rem; padding: 6px 12px; border-radius: 7px;
+    border: 1px solid var(--line); background: #fff; cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:hover { filter: brightness(0.97); }
+  details { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+  summary { cursor: pointer; font-size: 0.95rem; color: var(--muted); }
+  .checks label { display: block; font-size: 0.93rem; margin: 4px 0; }
+  .readout { font-size: 0.9rem; margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .readout table { width: 100%; border-collapse: collapse; }
+  .readout td { padding: 2px 0; }
+  .readout td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  canvas { width: 100%; display: block; }
+  .cap { color: var(--muted); font-size: 0.88rem; margin: 6px 0 0; }
+  .eqs { font-size: 0.98rem; }
+  .eqs .eq { display: flex; justify-content: space-between; align-items: baseline; margin: 4px 0; }
+  .eqs .eq i { font-style: italic; }
+  .eqs .num { color: var(--muted); margin-left: 12px; }
+  .wide { grid-column: 1 / -1; }
+  .share { font-size: 0.85rem; color: var(--muted); word-break: break-all; margin-top: 6px; }
+  footer { max-width: 1320px; margin: 0 auto; padding: 0 28px 28px; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hidden rotation in a noisy traveling pattern</h1>
+  <p class="sub">Two coupled complex amplitudes with non-reciprocal coupling generate a rotating pattern; additive Ornstein–Uhlenbeck noise of tunable strength <i>D</i> hides it in the raw field.</p>
+</header>
+
+<main>
+  <section class="controls card">
+    <h2>Noise</h2>
+    <div class="ctl">
+      <label>noise strength <i>D</i> <span class="v" id="Dval"></span></label>
+      <input id="logD" type="range" min="-8" max="0" step="0.05" value="-1">
+    </div>
+
+    <h2 style="margin-top:14px">Simulation</h2>
+    <div class="ctl">
+      <label>speed (time units / s) <span class="v" id="speedval"></span></label>
+      <input id="speed" type="range" min="1" max="60" step="1" value="6">
+    </div>
+    <div class="btns">
+      <button class="primary" id="play">Pause</button>
+      <button id="reset">Reset</button>
+      <button id="clear">Clear statistics</button>
+      <button id="copylink">Copy link to this setting</button>
+    </div>
+    <div class="share" id="sharemsg"></div>
+
+    <details>
+      <summary>Model parameters (Eq. 20)</summary>
+      <div class="ctl"><label><i>μ</i><sub>1</sub> <span class="v" id="mu1val"></span></label><input id="mu1" type="range" min="-0.2" max="0.5" step="0.01" value="0.1"></div>
+      <div class="ctl"><label><i>μ</i><sub>2</sub> <span class="v" id="mu2val"></span></label><input id="mu2" type="range" min="-0.2" max="0.5" step="0.01" value="0.1"></div>
+      <div class="ctl"><label><i>ε</i> (feedback A<sub>1</sub> → A<sub>2</sub>) <span class="v" id="epsval"></span></label><input id="eps" type="range" min="-1" max="2" step="0.05" value="1"></div>
+      <div class="ctl"><label><i>α</i> <span class="v" id="alphaval"></span></label><input id="alpha" type="range" min="0.2" max="3" step="0.05" value="1"></div>
+      <div class="ctl"><label><i>β</i> <span class="v" id="betaval"></span></label><input id="beta" type="range" min="0" max="3" step="0.05" value="1"></div>
+      <div class="ctl"><label><i>γ</i> <span class="v" id="gammaval"></span></label><input id="gamma" type="range" min="0" max="3" step="0.05" value="1"></div>
+      <div class="ctl"><label><i>δ</i> <span class="v" id="deltaval"></span></label><input id="delta" type="range" min="0.2" max="3" step="0.05" value="1"></div>
+      <div class="btns"><button id="defaults">Paper values</button></div>
+    </details>
+
+    <details open>
+      <summary>Display</summary>
+      <div class="checks">
+        <label><input type="checkbox" id="showClean" checked> clean pattern (no noise) in profile</label>
+        <label><input type="checkbox" id="showFlux" checked> steady-state density &amp; flux (exact) in mode plane</label>
+        <label><input type="checkbox" id="showTraj" checked> recent trajectory in mode plane</label>
+      </div>
+    </details>
+
+    <div class="readout">
+      <table>
+        <tr><td>time <i>t</i></td><td class="n" id="r_t"></td></tr>
+        <tr><td>|A<sub>1</sub>|, |A<sub>2</sub>|</td><td class="n" id="r_A"></td></tr>
+        <tr><td>noise std per site √(D/Δx)</td><td class="n" id="r_noise"></td></tr>
+        <tr><td>pattern std / noise std</td><td class="n" id="r_snr"></td></tr>
+        <tr><td>mean angular current ⟨J⟩ / Δt</td><td class="n" id="r_J"></td></tr>
+        <tr><td>2⟨J⟩²/Var(J) per unit time</td><td class="n" id="r_sigma"></td></tr>
+        <tr><td>samples in statistics</td><td class="n" id="r_n"></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>Snapshot profile <i>u</i>(<i>x</i>, <i>t</i>)</h2>
+      <canvas id="cProfile" height="300"></canvas>
+      <p class="cap">Observed field (dots) and the noise-free pattern Re[A<sub>1</sub>e<sup>ikx</sup> + A<sub>2</sub>e<sup>2ikx</sup>] (dashed).</p>
+    </div>
+    <div class="card">
+      <h2>Evolution of the profile <i>u</i>(<i>x</i>, <i>t</i>)</h2>
+      <canvas id="cHeat" height="300"></canvas>
+      <p class="cap">Space–time heatmap, newest time at the top. At large <i>D</i> the traveling structure disappears in the noise.</p>
+    </div>
+    <div class="card">
+      <h2>Rotational-mode plane</h2>
+      <canvas id="cPlane" height="360"></canvas>
+      <p class="cap">Projection <i>x</i><sub>1</sub> = ⟨<i>u</i>, <i>w</i><sub>1</sub>⟩, <i>x</i><sub>2</sub> = ⟨<i>u</i>, <i>w</i><sub>2</sub>⟩ on two rotational modes <i>w</i><sub>1</sub>, <i>w</i><sub>2</sub>: combinations of cos/sin(<i>kx</i>) and cos/sin(2<i>kx</i>) spanning the plane of the noise-free limit cycle. Color and white arrows: the steady-state probability density <i>p</i>(<b>x</b>) and probability flux <b>J</b>(<b>x</b>), calculated exactly rather than estimated from the simulation. With <b>c</b>(<i>t</i>) the noise-free limit cycle in the plane (period <i>T</i>) and <i>G<sub>D</sub></i> the 2-d Gaussian of variance <i>D</i> per axis, <i>p</i>(<b>x</b>) = (1/<i>T</i>)∫<sub>0</sub><sup><i>T</i></sup><i>G<sub>D</sub></i>(<b>x</b> − <b>c</b>) d<i>t</i> and <b>J</b>(<b>x</b>) = (1/<i>T</i>)∫<sub>0</sub><sup><i>T</i></sup><b>ċ</b> <i>G<sub>D</sub></i>(<b>x</b> − <b>c</b>) d<i>t</i>; the OU noise itself carries no stationary current. The teal curve is the simulated trajectory.</p>
+    </div>
+    <div class="card">
+      <h2>Rotational modes <i>w</i><sub>1</sub>(<i>x</i>), <i>w</i><sub>2</sub>(<i>x</i>)</h2>
+      <canvas id="cModes" height="360"></canvas>
+      <p class="cap">The two spatial weights that define the mode plane (dots: grid points used for the projection). Each is a combination of cos/sin(<i>kx</i>) and cos/sin(2<i>kx</i>) spanning the plane of the noise-free limit cycle, normalized so that ⟨<i>w<sub>i</sub></i>, <i>w<sub>j</sub></i>⟩ = δ<sub><i>ij</i></sub> with ⟨<i>f</i>, <i>g</i>⟩ = (2/N) Σ<sub><i>j</i></sub> <i>f</i>(<i>x<sub>j</sub></i>) <i>g</i>(<i>x<sub>j</sub></i>). They change only when the model parameters change.</p>
+    </div>
+    <div class="card">
+      <h2>Angular current</h2>
+      <canvas id="cJ" height="360"></canvas>
+      <p class="cap">Histogram of per-step angular increments <i>J</i> = <i>x</i><sub>1</sub>Δ<i>x</i><sub>2</sub> − <i>x</i><sub>2</sub>Δ<i>x</i><sub>1</sub> in the mode plane. A mean shifted away from zero signals rotation; 2⟨J⟩²/Var(J) is the current-based lower bound on the asymmetry rate.</p>
+    </div>
+    <div class="card wide eqs">
+      <h2>Model</h2>
+      <div class="eq"><span>dA<sub>1</sub>/dt = <i>μ</i><sub>1</sub>A<sub>1</sub> − A<sub>2</sub> − <i>α</i>|A<sub>1</sub>|²A<sub>1</sub> − <i>β</i>|A<sub>2</sub>|²A<sub>1</sub>,&nbsp;&nbsp; dA<sub>2</sub>/dt = <i>μ</i><sub>2</sub>A<sub>2</sub> + <i>ε</i>A<sub>1</sub> − <i>γ</i>|A<sub>1</sub>|²A<sub>2</sub> − <i>δ</i>|A<sub>2</sub>|²A<sub>2</sub></span><span class="num">(20)</span></div>
+      <div class="eq"><span><i>u</i>(<i>x</i>, <i>t</i>) = Re[A<sub>1</sub>(<i>t</i>)e<sup><i>ikx</i></sup> + A<sub>2</sub>(<i>t</i>)e<sup>2<i>ikx</i></sup>] + <i>ζ</i>(<i>x</i>, <i>t</i>),&nbsp;&nbsp; <i>k</i> = 2π</span><span class="num">(21)</span></div>
+      <div class="eq"><span>∂<sub><i>t</i></sub><i>ζ</i> = −<i>ζ</i> + <i>ξ</i>,&nbsp;&nbsp; ⟨<i>ξ</i>(<i>x</i>, <i>t</i>)<i>ξ</i>(<i>x</i>′, <i>t</i>′)⟩ = 2<i>D</i> δ(<i>x</i> − <i>x</i>′) δ(<i>t</i> − <i>t</i>′)</span><span class="num">(22)</span></div>
+      <p class="cap">Paper values: <i>μ</i><sub>1</sub> = <i>μ</i><sub>2</sub> = 0.1, <i>α</i> = <i>β</i> = <i>γ</i> = <i>δ</i> = <i>ε</i> = 1. Domain <i>x</i> ∈ [0, 2) on 41 grid points, time step Δt = 0.1; amplitudes integrated with RK4 as in the analysis code; the noise field is advanced with the exact Ornstein–Uhlenbeck update, so its stationary variance is exactly <i>D</i>/Δx per grid point. The noise enters only the observed field, so the amplitudes follow the same limit cycle (radius √μ for the paper values) at every <i>D</i>; in the mode plane the noise has standard deviation √<i>D</i> per axis.</p>
+    </div>
+  </section>
+</main>
+<footer>Simulation runs entirely in your browser. Settings can be shared through the URL, e.g. <code>?D=0.1&amp;mu1=0.1&amp;mu2=0.1</code>.</footer>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// Parameters and state
+// ---------------------------------------------------------------------------
+const L = 2.0, N = 41, DT = 0.1, K = 2 * Math.PI;
+const DX = L / N;
+const X = Array.from({ length: N }, (_, j) => j * DX);      // x in [0, 2), endpoint excluded
+const PAPER = { mu1: 0.1, mu2: 0.1, alpha: 1, beta: 1, gamma: 1, delta: 1, eps: 1 };
+const P = Object.assign({ D: 0.1, speed: 6 }, PAPER);
+const BURN_IN = 400;            // time units integrated before display (reach the limit cycle)
+const HEAT_ROWS = 300;          // time rows kept in the heatmap (30 time units)
+const STAT_WINDOW = 4000;       // samples kept for density / flux / current statistics
+const TRAIL = 120;              // samples in the drawn trajectory
+const FLUX_BINS = 15;
+
+let A = { r1: 0.1, i1: 0.1, r2: 0.1, i2: -0.1 };   // A1(0) = 0.1 + 0.1i, A2(0) = 0.1 - 0.1i
+let zeta = new Float64Array(N);
+let t = 0, running = true;
+let heat = [];                    // rows of u (Float64Array)
+let xs1 = [], xs2 = [];           // mode-plane samples (ring via shift)
+let Jsum = 0, J2sum = 0, Jn = 0, Jhist = [];
+
+// ---------------------------------------------------------------------------
+// Numerics
+// ---------------------------------------------------------------------------
+function rhs(a) {
+  const m1 = a.r1 * a.r1 + a.i1 * a.i1, m2 = a.r2 * a.r2 + a.i2 * a.i2;
+  const g1 = P.mu1 - P.alpha * m1 - P.beta * m2;
+  const g2 = P.mu2 - P.gamma * m1 - P.delta * m2;
+  return {
+    r1: g1 * a.r1 - a.r2, i1: g1 * a.i1 - a.i2,
+    r2: g2 * a.r2 + P.eps * a.r1, i2: g2 * a.i2 + P.eps * a.i1,
+  };
+}
+function axpy(a, h, k) { return { r1: a.r1 + h * k.r1, i1: a.i1 + h * k.i1, r2: a.r2 + h * k.r2, i2: a.i2 + h * k.i2 }; }
+function rk4(a, h) {
+  const k1 = rhs(a), k2 = rhs(axpy(a, h / 2, k1)), k3 = rhs(axpy(a, h / 2, k2)), k4 = rhs(axpy(a, h, k3));
+  return {
+    r1: a.r1 + h / 6 * (k1.r1 + 2 * k2.r1 + 2 * k3.r1 + k4.r1),
+    i1: a.i1 + h / 6 * (k1.i1 + 2 * k2.i1 + 2 * k3.i1 + k4.i1),
+    r2: a.r2 + h / 6 * (k1.r2 + 2 * k2.r2 + 2 * k3.r2 + k4.r2),
+    i2: a.i2 + h / 6 * (k1.i2 + 2 * k2.i2 + 2 * k3.i2 + k4.i2),
+  };
+}
+let spare = null;
+function gauss() {
+  if (spare !== null) { const s = spare; spare = null; return s; }
+  let u, v, s;
+  do { u = 2 * Math.random() - 1; v = 2 * Math.random() - 1; s = u * u + v * v; } while (s === 0 || s >= 1);
+  const f = Math.sqrt(-2 * Math.log(s) / s);
+  spare = v * f; return u * f;
+}
+function stepNoise() {
+  // Exact discretization of Eq. 22 on the grid (white noise -> variance 2D/dx per site and unit time):
+  // zeta <- e^{-dt} zeta + sqrt((D/dx)(1 - e^{-2 dt})) xi, so the stationary variance is exactly D/dx.
+  const decay = Math.exp(-DT), amp = Math.sqrt(P.D / DX * (1 - Math.exp(-2 * DT)));
+  for (let j = 0; j < N; j++) zeta[j] = decay * zeta[j] + amp * gauss();
+}
+function cleanField(a) {
+  const c = new Float64Array(N);
+  for (let j = 0; j < N; j++) {
+    const p = K * X[j], q = 2 * K * X[j];
+    c[j] = a.r1 * Math.cos(p) - a.i1 * Math.sin(p) + a.r2 * Math.cos(q) - a.i2 * Math.sin(q);
+  }
+  return c;
+}
+// Rotational-mode plane. The noise-free state lives in the 4-d amplitude space
+// a = (Re A1, Im A1, Re A2, Im A2), and u_clean(x) = sum_c a_c phi_c(x) with the orthogonal pattern
+// modes phi = (cos kx, -sin kx, cos 2kx, -sin 2kx). The plane is the top-2 principal subspace of the
+// recent noise-free amplitudes (the plane of the limit cycle), mapped to field weights
+// w_i(x) = sum_c b_ic phi_c(x); x_i = (2/N) sum_j u(x_j) w_i(x_j) then equals b_i . a for the clean
+// pattern, and the noise contributes variance D per axis.
+const PHI = [0, 1, 2, 3].map(c => X.map(x => [Math.cos(K * x), -Math.sin(K * x), Math.cos(2 * K * x), -Math.sin(2 * K * x)][c]));
+const AMP_BUF = 2000;              // noise-free amplitude samples used for the plane (200 time units)
+const PLANE_EVERY = 500;           // steps between plane updates
+let planeVersion = 0;
+let ampBuf = [], basis = null, W1 = new Float64Array(N), W2 = new Float64Array(N), stepCount = 0;
+function jacobiEig(S) {            // symmetric 4x4 -> eigenvalues, eigenvectors (columns)
+  const n = 4, a = S.map(r => r.slice()), V = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
+  for (let sweep = 0; sweep < 50; sweep++) {
+    let off = 0; for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) off += a[p][q] * a[p][q];
+    if (off < 1e-24) break;
+    for (let p = 0; p < n; p++) for (let q = p + 1; q < n; q++) {
+      if (Math.abs(a[p][q]) < 1e-30) continue;
+      const th = 0.5 * Math.atan2(2 * a[p][q], a[q][q] - a[p][p]), c = Math.cos(th), s = Math.sin(th);
+      for (let k = 0; k < n; k++) { const akp = a[k][p], akq = a[k][q]; a[k][p] = c * akp - s * akq; a[k][q] = s * akp + c * akq; }
+      for (let k = 0; k < n; k++) { const apk = a[p][k], aqk = a[q][k]; a[p][k] = c * apk - s * aqk; a[q][k] = s * apk + c * aqk; }
+      for (let k = 0; k < n; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - s * vkq; V[k][q] = s * vkp + c * vkq; }
+    }
+  }
+  return { vals: [0, 1, 2, 3].map(i => a[i][i]), vecs: [0, 1, 2, 3].map(i => V.map(r => r[i])) };
+}
+const dot4 = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2] + u[3] * v[3];
+function normalize4(v) { const n = Math.sqrt(dot4(v, v)) || 1; return v.map(c => c / n); }
+function updatePlane() {
+  const m = ampBuf.length; if (m < 50) return;
+  const mu = [0, 0, 0, 0]; for (const a of ampBuf) for (let c = 0; c < 4; c++) mu[c] += a[c] / m;
+  const S = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+  for (const a of ampBuf) for (let p = 0; p < 4; p++) for (let q = 0; q < 4; q++) S[p][q] += (a[p] - mu[p]) * (a[q] - mu[q]) / m;
+  const { vals, vecs } = jacobiEig(S);
+  const ord = [0, 1, 2, 3].sort((i, j) => vals[j] - vals[i]);
+  const E1 = vecs[ord[0]], E2 = vecs[ord[1]];
+  const proj = b => { const c1 = dot4(b, E1), c2 = dot4(b, E2); return [0, 1, 2, 3].map(c => c1 * E1[c] + c2 * E2[c]); };
+  let b1, b2;
+  if (basis) {                     // continuity: carry the previous axes into the new plane
+    b1 = normalize4(proj(basis[0]));
+    let t2 = proj(basis[1]); const d = dot4(t2, b1); t2 = t2.map((c, i) => c - d * b1[i]); b2 = normalize4(t2);
+  } else {
+    b1 = E1; b2 = E2;              // orientation: make the noise-free circulation counterclockwise
+    let circ = 0;
+    for (let i = 1; i < m; i++) {
+      const p1 = dot4(ampBuf[i - 1], b1), p2 = dot4(ampBuf[i - 1], b2), q1 = dot4(ampBuf[i], b1), q2 = dot4(ampBuf[i], b2);
+      circ += p1 * (q2 - p2) - p2 * (q1 - p1);
+    }
+    if (circ < 0) b2 = b2.map(c => -c);
+  }
+  basis = [b1, b2];
+  planeVersion++;
+  for (let j = 0; j < N; j++) {
+    W1[j] = b1[0] * PHI[0][j] + b1[1] * PHI[1][j] + b1[2] * PHI[2][j] + b1[3] * PHI[3][j];
+    W2[j] = b2[0] * PHI[0][j] + b2[1] * PHI[1][j] + b2[2] * PHI[2][j] + b2[3] * PHI[3][j];
+  }
+}
+function project(u) {
+  let s1 = 0, s2 = 0;
+  for (let j = 0; j < N; j++) { s1 += u[j] * W1[j]; s2 += u[j] * W2[j]; }
+  return [2 * s1 / N, 2 * s2 / N];
+}
+function oneStep(record) {
+  A = rk4(A, DT);
+  stepNoise();
+  t += DT;
+  ampBuf.push([A.r1, A.i1, A.r2, A.i2]); if (ampBuf.length > AMP_BUF) ampBuf.shift();
+  if (++stepCount % PLANE_EVERY === 0) updatePlane();
+  if (!record) return;
+  const c = cleanField(A);
+  const u = new Float64Array(N);
+  for (let j = 0; j < N; j++) u[j] = c[j] + zeta[j];
+  heat.push(u); if (heat.length > HEAT_ROWS) heat.shift();
+  const [p1, p2] = project(u);
+  if (xs1.length) {
+    const a1 = xs1[xs1.length - 1], a2 = xs2[xs2.length - 1];
+    const J = a1 * (p2 - a2) - a2 * (p1 - a1);
+    Jsum += J; J2sum += J * J; Jn += 1;
+    Jhist.push(J); if (Jhist.length > STAT_WINDOW) Jhist.shift();
+  }
+  xs1.push(p1); xs2.push(p2);
+  if (xs1.length > STAT_WINDOW) { xs1.shift(); xs2.shift(); }
+  lastU = u; lastClean = c;
+}
+let lastU = new Float64Array(N), lastClean = new Float64Array(N);
+
+function clearStats() { xs1 = []; xs2 = []; Jsum = 0; J2sum = 0; Jn = 0; Jhist = []; }
+function reset() {
+  A = { r1: 0.1, i1: 0.1, r2: 0.1, i2: -0.1 };
+  zeta = new Float64Array(N); t = 0; heat = []; clearStats();
+  ampBuf = []; basis = null; stepCount = 0;
+  for (let n = 0; n < BURN_IN / DT; n++) oneStep(false);
+  basis = null; updatePlane();
+  // start the noise field from its stationary distribution
+  const sd = Math.sqrt(P.D / DX);
+  for (let j = 0; j < N; j++) zeta[j] = sd * gauss();
+  for (let n = 0; n < 5; n++) oneStep(true);
+}
+
+
+// ---------------------------------------------------------------------------
+// Exact steady state in the mode plane
+// ---------------------------------------------------------------------------
+// x(t) = c(t) + n(t): c is the noise-free limit cycle projected on the plane and n the projected noise,
+// an isotropic 2-d OU process with covariance D I, independent of c. Averaging over one period T,
+//   p(x) = (1/T) int_0^T G_D(x - c(t)) dt,       J(x) = (1/T) int_0^T c'(t) G_D(x - c(t)) dt,
+// with G_D the 2-d Gaussian of variance D per axis. (The OU noise carries no stationary current of its
+// own: -n p_n - D grad p_n = 0.) Both are averaged exactly over each display cell with error functions.
+function erf(x) {                       // Abramowitz & Stegun 7.1.26, |error| < 1.5e-7
+  const s = x < 0 ? -1 : 1; x = Math.abs(x);
+  const t = 1 / (1 + 0.3275911 * x);
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return s * y;
+}
+function planeCoords(a) { return [dot4(basis[0], a), dot4(basis[1], a)]; }
+// One period of the noise-free cycle, integrated finely from the current amplitudes.
+function cyclePoints() {
+  const h = 0.005, maxSteps = 200000;
+  let a = { r1: A.r1, i1: A.i1, r2: A.r2, i2: A.i2 };
+  const pts = [], vel = [];
+  let ang = 0, prev = null;
+  for (let s = 0; s < maxSteps; s++) {
+    const v = [a.r1, a.i1, a.r2, a.i2], d = rhs(a), dv = [d.r1, d.i1, d.r2, d.i2];
+    const c = planeCoords(v), cd = planeCoords(dv);
+    if (prev) { let da = Math.atan2(c[1], c[0]) - Math.atan2(prev[1], prev[0]); if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; ang += da; }
+    if (Math.abs(ang) >= 2 * Math.PI) break;
+    pts.push(c); vel.push(cd); prev = c;
+    a = rk4(a, h);
+  }
+  if (Math.abs(ang) < 2 * Math.PI) {      // no closed revolution (e.g. a stable fixed point): use the end state
+    const v = [a.r1, a.i1, a.r2, a.i2], d = rhs(a);
+    return { pts: [planeCoords(v)], vel: [planeCoords([d.r1, d.i1, d.r2, d.i2])] };
+  }
+  const stride = Math.max(1, Math.floor(pts.length / 4000));   // keep the time average uniform in t
+  return { pts: pts.filter((_, i) => i % stride === 0), vel: vel.filter((_, i) => i % stride === 0) };
+}
+function cellWeights(c, lo, cell, B, sig) {   // fraction of a 1-d Gaussian N(c, sig^2) in each cell
+  const w = new Float64Array(B); const r = 0.70710678 / sig;
+  const i0 = Math.max(0, Math.floor((c - 6 * sig - lo) / cell)), i1 = Math.min(B - 1, Math.floor((c + 6 * sig - lo) / cell));
+  let ePrev = erf((lo + i0 * cell - c) * r);
+  for (let i = i0; i <= i1; i++) { const e = erf((lo + (i + 1) * cell - c) * r); w[i] = 0.5 * (e - ePrev); ePrev = e; }
+  return { w, i0, i1 };
+}
+function cellAverages(cyc, lim, B, withFlux) {
+  const cell = 2 * lim / B, area = cell * cell, sig = Math.sqrt(P.D), M = cyc.pts.length;
+  const dens = new Float64Array(B * B), fx = withFlux ? new Float64Array(B * B) : null, fy = withFlux ? new Float64Array(B * B) : null;
+  for (let m = 0; m < M; m++) {
+    const [c1, c2] = cyc.pts[m], [v1, v2] = cyc.vel[m];
+    const WX = cellWeights(c1, -lim, cell, B, sig), WY = cellWeights(c2, -lim, cell, B, sig);
+    for (let i = WX.i0; i <= WX.i1; i++) {
+      const wx = WX.w[i]; if (wx === 0) continue;
+      for (let j = WY.i0; j <= WY.i1; j++) {
+        const wgt = wx * WY.w[j]; if (wgt === 0) continue;
+        dens[i * B + j] += wgt;
+        if (withFlux) { fx[i * B + j] += wgt * v1; fy[i * B + j] += wgt * v2; }
+      }
+    }
+  }
+  for (let q = 0; q < B * B; q++) { dens[q] /= (M * area); if (withFlux) { fx[q] /= (M * area); fy[q] /= (M * area); } }
+  return { dens, fx, fy, cell };
+}
+const DENS_BINS = 90;                   // resolution of the exact density image
+let steady = null, steadyKey = "";
+function steadyState(lim) {
+  const key = [P.D, lim, planeVersion, P.mu1, P.mu2, P.alpha, P.beta, P.gamma, P.delta, P.eps].join("|");
+  if (steady && key === steadyKey) return steady;
+  const cyc = cyclePoints();
+  steady = { lim, img: cellAverages(cyc, lim, DENS_BINS, false), arr: cellAverages(cyc, lim, FLUX_BINS, true), cyc };
+  steadyKey = key;
+  return steady;
+}
+
+// ---------------------------------------------------------------------------
+// Drawing helpers
+// ---------------------------------------------------------------------------
+const FONT = '"Latin Modern Roman", "CMU Serif", "STIX Two Text", Georgia, serif';
+function setupCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1;
+  if (!cv.dataset.h) cv.dataset.h = cv.getAttribute("height");   // CSS height, read once (the attribute is overwritten below)
+  const w = cv.clientWidth, h = +cv.dataset.h;
+  if (cv._w !== w || cv._dpr !== dpr) {
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    cv.style.height = h + "px"; cv._w = w; cv._dpr = dpr;
+  }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+function niceTicks(lo, hi, n) {
+  const span = hi - lo, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n) || 10 * mag;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-12; v += step) out.push(Math.abs(v) < 1e-12 ? 0 : v);
+  return out;
+}
+function fmt(v) { const a = Math.abs(v); if (a === 0) return "0"; if (a >= 1e3 || a < 1e-2) return v.toExponential(0); return +v.toPrecision(3) + ""; }
+function axes(ctx, box, xr, yr, xl, yl, opts = {}) {
+  const { x0, y0, w, h } = box;
+  ctx.strokeStyle = "#1d1d22"; ctx.lineWidth = 1;
+  ctx.strokeRect(x0, y0, w, h);
+  ctx.fillStyle = "#1d1d22"; ctx.font = `14px ${FONT}`;
+  const X2 = v => x0 + (v - xr[0]) / (xr[1] - xr[0]) * w;
+  const Y2 = v => y0 + h - (v - yr[0]) / (yr[1] - yr[0]) * h;
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const v of (opts.xt || niceTicks(xr[0], xr[1], 5))) { const px = X2(v); ctx.beginPath(); ctx.moveTo(px, y0 + h); ctx.lineTo(px, y0 + h + 4); ctx.stroke(); ctx.fillText(fmt(v), px, y0 + h + 6); }
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const v of (opts.yt || niceTicks(yr[0], yr[1], 5))) { const py = Y2(v); ctx.beginPath(); ctx.moveTo(x0, py); ctx.lineTo(x0 - 4, py); ctx.stroke(); ctx.fillText(fmt(v), x0 - 7, py); }
+  ctx.font = `italic 16px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "top";
+  ctx.fillText(xl, x0 + w / 2, y0 + h + 24);
+  ctx.save(); ctx.translate(x0 - 42, y0 + h / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = "bottom"; ctx.fillText(yl, 0, 0); ctx.restore();
+  return { X2, Y2 };
+}
+// Diverging colormap (RdBu_r-like) and inferno-like sequential colormap.
+const RDBU = [[5,48,97],[33,102,172],[67,147,195],[146,197,222],[209,229,240],[247,247,247],[253,219,199],[244,165,130],[214,96,77],[178,24,43],[103,0,31]];
+const INFERNO = [[0,0,4],[31,12,72],[85,15,109],[136,34,106],[186,54,85],[227,89,51],[249,140,10],[249,201,50],[252,255,164]];
+function cmap(stops, s) {
+  s = Math.min(1, Math.max(0, s)) * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.floor(s)), f = s - i, a = stops[i], b = stops[i + 1];
+  return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2])];
+}
+function colorbar(ctx, x, y, w, h, stops, lo, hi, label) {
+  for (let i = 0; i < h; i++) { const c = cmap(stops, 1 - i / h); ctx.fillStyle = `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`; ctx.fillRect(x, y + i, w, 1.5); }
+  ctx.strokeStyle = "#1d1d22"; ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = "#1d1d22"; ctx.font = `13px ${FONT}`; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  for (const v of niceTicks(lo, hi, 4)) { const py = y + h - (v - lo) / (hi - lo) * h; ctx.fillText(fmt(v), x + w + 4, py); }
+  ctx.save(); ctx.translate(x + w + 44, y + h / 2); ctx.rotate(-Math.PI / 2); ctx.font = `italic 15px ${FONT}`; ctx.textAlign = "center"; ctx.fillText(label, 0, 0); ctx.restore();
+}
+function arrow(ctx, x, y, dx, dy, color, width, head) {
+  const len = Math.hypot(dx, dy); if (len < 0.5) return;
+  const ux = dx / len, uy = dy / len, hl = Math.min(head, 0.6 * len);
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx - ux * hl * 0.8, y + dy - uy * hl * 0.8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + dx, y + dy);
+  ctx.lineTo(x + dx - ux * hl - uy * hl * 0.45, y + dy - uy * hl + ux * hl * 0.45);
+  ctx.lineTo(x + dx - ux * hl + uy * hl * 0.45, y + dy - uy * hl - ux * hl * 0.45);
+  ctx.closePath(); ctx.fill();
+}
+function patternScale() { return Math.max(0.05, Math.sqrt(Math.max(P.mu1, P.mu2, 0.01))); }
+function fieldRange() { return Math.max(1.6 * patternScale(), 2.5 * Math.sqrt(P.D / DX)); }
+
+// ---------------------------------------------------------------------------
+// Panels
+// ---------------------------------------------------------------------------
+function drawProfile() {
+  const { ctx, w, h } = setupCanvas(document.getElementById("cProfile"));
+  const box = { x0: 62, y0: 14, w: w - 80, h: h - 66 };
+  const r = fieldRange();
+  const { X2, Y2 } = axes(ctx, box, [0, L], [-r, r], "x", "u(x, t)");
+  ctx.save(); ctx.beginPath(); ctx.rect(box.x0, box.y0, box.w, box.h); ctx.clip();
+  ctx.strokeStyle = "#e3e4e8"; ctx.beginPath(); ctx.moveTo(box.x0, Y2(0)); ctx.lineTo(box.x0 + box.w, Y2(0)); ctx.stroke();
+  if (document.getElementById("showClean").checked) {
+    ctx.strokeStyle = "#7B4FB5"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath();
+    for (let s = 0; s <= 200; s++) {
+      const x = s / 200 * L, p = K * x, q = 2 * K * x;
+      const v = A.r1 * Math.cos(p) - A.i1 * Math.sin(p) + A.r2 * Math.cos(q) - A.i2 * Math.sin(q);
+      s ? ctx.lineTo(X2(x), Y2(v)) : ctx.moveTo(X2(x), Y2(v));
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  ctx.strokeStyle = "#1d1d22"; ctx.lineWidth = 1.2; ctx.beginPath();
+  for (let j = 0; j < N; j++) j ? ctx.lineTo(X2(X[j]), Y2(lastU[j])) : ctx.moveTo(X2(X[j]), Y2(lastU[j]));
+  ctx.stroke();
+  ctx.fillStyle = "#1d1d22";
+  for (let j = 0; j < N; j++) { ctx.beginPath(); ctx.arc(X2(X[j]), Y2(lastU[j]), 2.6, 0, 2 * Math.PI); ctx.fill(); }
+  ctx.restore();
+}
+
+const heatImg = document.createElement("canvas");
+function drawHeat() {
+  const { ctx, w, h } = setupCanvas(document.getElementById("cHeat"));
+  const box = { x0: 62, y0: 14, w: w - 150, h: h - 66 };
+  const r = fieldRange();
+  const rows = heat.length;
+  heatImg.width = N; heatImg.height = HEAT_ROWS;
+  const hc = heatImg.getContext("2d"), img = hc.createImageData(N, HEAT_ROWS);
+  for (let i = 0; i < HEAT_ROWS; i++) {
+    const row = heat[rows - 1 - i];         // top row = newest
+    for (let j = 0; j < N; j++) {
+      const o = 4 * (i * N + j);
+      if (!row) { img.data[o + 3] = 0; continue; }
+      const c = cmap(RDBU, 0.5 + row[j] / (2 * r));
+      img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+    }
+  }
+  hc.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(heatImg, box.x0, box.y0, box.w, box.h);
+  const tTop = t, tBot = t - HEAT_ROWS * DT;
+  axes(ctx, box, [0, L], [tBot, tTop], "x", "t");
+  colorbar(ctx, box.x0 + box.w + 14, box.y0, 14, box.h, RDBU, -r, r, "u");
+}
+
+function drawPlane() {
+  const { ctx, w, h } = setupCanvas(document.getElementById("cPlane"));
+  const size = Math.min(w - 150, h - 66);
+  const box = { x0: 62, y0: 14, w: size, h: size };
+  const lim = 1.35 * patternScale() + 3 * Math.sqrt(P.D);
+  const { X2, Y2 } = axes(ctx, box, [-lim, lim], [-lim, lim], "x₁", "x₂");
+  const n = xs1.length;
+  ctx.save(); ctx.beginPath(); ctx.rect(box.x0, box.y0, box.w, box.h); ctx.clip();
+  if (document.getElementById("showFlux").checked && basis) {
+    const ss = steadyState(lim);
+    const B = DENS_BINS, px = box.w / B, d = ss.img.dens;
+    let dmax = 0; for (let q = 0; q < B * B; q++) dmax = Math.max(dmax, d[q]);
+    for (let i = 0; i < B; i++) for (let j = 0; j < B; j++) {
+      const c = cmap(INFERNO, d[i * B + j] / (dmax || 1));
+      ctx.fillStyle = `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;
+      ctx.fillRect(box.x0 + i * px, box.y0 + box.h - (j + 1) * px, px + 0.6, px + 0.6);
+    }
+    const F = FLUX_BINS, pa = box.w / F, a = ss.arr;
+    let amax = 0, jmax = 0;
+    for (let q = 0; q < F * F; q++) { amax = Math.max(amax, a.dens[q]); jmax = Math.max(jmax, Math.hypot(a.fx[q], a.fy[q])); }
+    const scale = jmax > 0 ? 0.9 * pa / jmax : 0;
+    for (let i = 0; i < F; i++) for (let j = 0; j < F; j++) {
+      const q = i * F + j; if (a.dens[q] < 0.02 * amax) continue;
+      const cx = box.x0 + (i + 0.5) * pa, cy = box.y0 + box.h - (j + 0.5) * pa;
+      arrow(ctx, cx - 0.5 * scale * a.fx[q], cy + 0.5 * scale * a.fy[q], scale * a.fx[q], -scale * a.fy[q], "#ffffff", 1.4, 6);
+    }
+    ctx.restore(); ctx.save();
+    colorbar(ctx, box.x0 + box.w + 14, box.y0, 14, box.h, INFERNO, 0, dmax || 1, "density");
+    ctx.restore(); ctx.save(); ctx.beginPath(); ctx.rect(box.x0, box.y0, box.w, box.h); ctx.clip();
+  } else {
+    ctx.fillStyle = "#fbfbfc"; ctx.fillRect(box.x0, box.y0, box.w, box.h);
+  }
+  if (document.getElementById("showTraj").checked && n > 1) {
+    const s0 = Math.max(0, n - TRAIL);
+    for (let s = s0 + 1; s < n; s++) {
+      const a = (s - s0) / (n - s0);
+      ctx.strokeStyle = `rgba(14,149,148,${0.15 + 0.85 * a})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(X2(xs1[s - 1]), Y2(xs2[s - 1])); ctx.lineTo(X2(xs1[s]), Y2(xs2[s])); ctx.stroke();
+    }
+    ctx.fillStyle = "#0E9594"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(X2(xs1[n - 1]), Y2(xs2[n - 1]), 5, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawModes() {
+  const { ctx, w, h } = setupCanvas(document.getElementById("cModes"));
+  const box = { x0: 62, y0: 14, w: w - 80, h: h - 66 };
+  if (!basis) { axes(ctx, box, [0, L], [-1, 1], "x", "weight"); return; }
+  const f = (b, x) => b[0] * Math.cos(K * x) - b[1] * Math.sin(K * x) + b[2] * Math.cos(2 * K * x) - b[3] * Math.sin(2 * K * x);
+  let r = 0; for (let s = 0; s <= 400; s++) { const x = s / 400 * L; r = Math.max(r, Math.abs(f(basis[0], x)), Math.abs(f(basis[1], x))); }
+  r = 1.15 * (r || 1);
+  const { X2, Y2 } = axes(ctx, box, [0, L], [-r, r], "x", "weight");
+  ctx.save(); ctx.beginPath(); ctx.rect(box.x0, box.y0, box.w, box.h); ctx.clip();
+  ctx.strokeStyle = "#e3e4e8"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(box.x0, Y2(0)); ctx.lineTo(box.x0 + box.w, Y2(0)); ctx.stroke();
+  const cols = ["#0E9594", "#7B4FB5"], Ws = [W1, W2];
+  for (let m = 0; m < 2; m++) {
+    ctx.strokeStyle = cols[m]; ctx.lineWidth = 2.2; ctx.beginPath();
+    for (let s = 0; s <= 400; s++) { const x = s / 400 * L, v = f(basis[m], x); s ? ctx.lineTo(X2(x), Y2(v)) : ctx.moveTo(X2(x), Y2(v)); }
+    ctx.stroke();
+    ctx.fillStyle = cols[m];
+    for (let j = 0; j < N; j++) { ctx.beginPath(); ctx.arc(X2(X[j]), Y2(Ws[m][j]), 2.6, 0, 2 * Math.PI); ctx.fill(); }
+  }
+  ctx.restore();
+  ctx.font = `italic 15px ${FONT}`; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  for (let m = 0; m < 2; m++) {
+    const yy = box.y0 + 14 + 20 * m, xx = box.x0 + box.w - 70;
+    ctx.strokeStyle = cols[m]; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx + 22, yy); ctx.stroke();
+    ctx.fillStyle = "#1d1d22"; ctx.fillText(m ? "w₂" : "w₁", xx + 28, yy);
+  }
+}
+
+function drawJ() {
+  const { ctx, w, h } = setupCanvas(document.getElementById("cJ"));
+  const box = { x0: 62, y0: 14, w: w - 80, h: h - 66 };
+  const m = Jhist.length;
+  if (m < 20) { axes(ctx, box, [-1, 1], [0, 1], "J", "density"); return; }
+  let mean = 0; for (const v of Jhist) mean += v; mean /= m;
+  let vr = 0; for (const v of Jhist) vr += (v - mean) * (v - mean); vr /= (m - 1);
+  const sd = Math.sqrt(vr), span = Math.max(4 * sd, 1.5 * Math.abs(mean), 1e-9);
+  const lo = Math.min(-span, mean - 4 * sd), hi = Math.max(span, mean + 4 * sd);
+  const B = 50, bw = (hi - lo) / B, hist = new Float64Array(B);
+  for (const v of Jhist) { const i = Math.floor((v - lo) / bw); if (i >= 0 && i < B) hist[i]++; }
+  let hmax = 0; for (let i = 0; i < B; i++) { hist[i] /= (m * bw); hmax = Math.max(hmax, hist[i]); }
+  const { X2, Y2 } = axes(ctx, box, [lo, hi], [0, 1.1 * hmax], "J = x₁Δx₂ − x₂Δx₁", "density");
+  ctx.fillStyle = "rgba(123,79,181,0.75)";
+  for (let i = 0; i < B; i++) { const xa = X2(lo + i * bw), xb = X2(lo + (i + 1) * bw); ctx.fillRect(xa, Y2(hist[i]), xb - xa - 0.5, Y2(0) - Y2(hist[i])); }
+  ctx.strokeStyle = "#888"; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(X2(0), box.y0); ctx.lineTo(X2(0), box.y0 + box.h); ctx.stroke();
+  ctx.setLineDash([]); ctx.strokeStyle = "#1d1d22"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(X2(mean), box.y0); ctx.lineTo(X2(mean), box.y0 + box.h); ctx.stroke();
+  ctx.fillStyle = "#1d1d22"; ctx.font = `14px ${FONT}`; ctx.textAlign = "right"; ctx.textBaseline = "top";
+  ctx.fillText(`⟨J⟩ = ${mean.toExponential(2)}`, box.x0 + box.w - 8, box.y0 + 8);
+  ctx.fillText(`SD(J) = ${sd.toExponential(2)}`, box.x0 + box.w - 8, box.y0 + 26);
+}
+
+function updateReadout() {
+  const $ = id => document.getElementById(id);
+  $("r_t").textContent = t.toFixed(1);
+  $("r_A").textContent = `${Math.hypot(A.r1, A.i1).toFixed(3)}, ${Math.hypot(A.r2, A.i2).toFixed(3)}`;
+  const nsd = Math.sqrt(P.D / DX);
+  $("r_noise").textContent = nsd.toPrecision(3);
+  let ps = 0; for (let j = 0; j < N; j++) ps += lastClean[j] * lastClean[j];
+  ps = Math.sqrt(ps / N);
+  $("r_snr").textContent = (ps / nsd).toPrecision(3);
+  const m = Jhist.length;
+  if (m > 20) {
+    let mean = 0; for (const v of Jhist) mean += v; mean /= m;
+    let vr = 0; for (const v of Jhist) vr += (v - mean) * (v - mean); vr /= (m - 1);
+    $("r_J").textContent = (mean / DT).toPrecision(3);
+    $("r_sigma").textContent = (2 * mean * mean / vr / DT).toPrecision(3);
+  } else { $("r_J").textContent = "–"; $("r_sigma").textContent = "–"; }
+  $("r_n").textContent = m;
+}
+
+// ---------------------------------------------------------------------------
+// Controls, URL sharing and main loop
+// ---------------------------------------------------------------------------
+const sliders = ["mu1", "mu2", "eps", "alpha", "beta", "gamma", "delta"];
+function syncLabels() {
+  document.getElementById("Dval").textContent = P.D < 1e-3 ? P.D.toExponential(1) : P.D.toPrecision(2);
+  document.getElementById("speedval").textContent = P.speed;
+  for (const s of sliders) document.getElementById(s + "val").textContent = (+P[s]).toFixed(2);
+}
+function readURL() {
+  const q = new URLSearchParams(location.search);
+  if (q.has("D")) { const v = parseFloat(q.get("D")); if (v > 0) P.D = Math.min(1, Math.max(1e-8, v)); }
+  if (q.has("speed")) P.speed = Math.min(60, Math.max(1, parseInt(q.get("speed"))));
+  for (const s of sliders) if (q.has(s)) { const v = parseFloat(q.get(s)); if (isFinite(v)) P[s] = v; }
+  document.getElementById("logD").value = Math.log10(P.D);
+  document.getElementById("speed").value = P.speed;
+  for (const s of sliders) document.getElementById(s).value = P[s];
+}
+function shareURL() {
+  const q = new URLSearchParams();
+  q.set("D", +P.D.toPrecision(3));
+  for (const s of sliders) if (P[s] !== PAPER[s]) q.set(s, P[s]);
+  if (P.speed !== 6) q.set("speed", P.speed);
+  return location.origin + location.pathname + "?" + q.toString();
+}
+document.getElementById("logD").addEventListener("input", e => { P.D = Math.pow(10, +e.target.value); syncLabels(); clearStats(); });
+document.getElementById("speed").addEventListener("input", e => { P.speed = +e.target.value; syncLabels(); });
+for (const s of sliders) document.getElementById(s).addEventListener("input", e => { P[s] = +e.target.value; syncLabels(); clearStats(); });
+document.getElementById("play").addEventListener("click", e => { running = !running; e.target.textContent = running ? "Pause" : "Play"; });
+document.getElementById("reset").addEventListener("click", () => reset());
+document.getElementById("clear").addEventListener("click", () => clearStats());
+document.getElementById("defaults").addEventListener("click", () => {
+  Object.assign(P, PAPER); for (const s of sliders) document.getElementById(s).value = P[s]; syncLabels(); reset();
+});
+document.getElementById("copylink").addEventListener("click", async () => {
+  const url = shareURL(), msg = document.getElementById("sharemsg");
+  try { await navigator.clipboard.writeText(url); msg.textContent = "Copied: " + url; }
+  catch (err) { msg.textContent = url; }
+});
+
+let acc = 0, last = performance.now();
+function frame(now) {
+  const elapsed = Math.min(0.1, (now - last) / 1000); last = now;
+  if (running) {
+    acc += elapsed * P.speed;                   // time units to simulate this frame
+    let steps = Math.floor(acc / DT); acc -= steps * DT;
+    steps = Math.min(steps, 200);
+    for (let s = 0; s < steps; s++) oneStep(true);
+  }
+  drawProfile(); drawHeat(); drawPlane(); drawModes(); drawJ(); updateReadout();
+  requestAnimationFrame(frame);
+}
+readURL(); syncLabels(); reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
